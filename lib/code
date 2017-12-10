@@ -1,0 +1,144 @@
+###H2O
+
+
+#install h2o
+if ("package:h2o" %in% search()) { detach("package:h2o", unload=TRUE) }
+if ("h2o" %in% rownames(installed.packages())) { remove.packages("h2o") }
+install.packages(c("RCurl", "rjson", "statmod","survival", "stats","tools", "utils","methods"))
+install.packages("h2o")
+library(h2o)
+local.h2o<-h2o.init(ip = "localhost", port = 54321, startH2O = TRUE, nthreads = -1)
+
+train<-read.csv("/Users/fanliu/Desktop/AI\ Project/data/mnist_train.csv",header=F) 
+test<-read.csv("/Users/fanliu/Desktop/AI\ Project/data/mnist_test.csv",header = F)
+test_lables<-test[,1]
+
+#plot the first 100 digits, together with labels
+
+
+par(mfrow=c(10,10),mai=c(0,0,0,0))
+
+for (i in 1:100){
+  y=as.matrix(train[i,2:785])
+  dim(y)=c(28,28) #these two lines are to recover 28*28 images
+  image(y[,nrow(y):1],axes=FALSE,col=gray(1:0)) #gray(0:1) or gray(1:0)
+  text(0.2,0,train[i,1],cex=2, col=2, pos=3)
+}
+
+
+#normalize data
+train[,-1]<-train[,-1]/255
+test[,-1]<-test[,-1]/255
+train[,1]<-as.factor(train[,1]) 
+test[,1]<-as.factor(test[,1]) 
+
+train_h2o<-as.h2o(train)
+test_h2o<-as.h2o(test)
+#train the model
+model<-h2o.deeplearning(x=2:785, y=1, train_h2o, activation="Tanh", hidden=rep(160,5),epochs = 20)
+#to predict testdata
+pred<-h2o.predict(model,test_h2o[,-1])
+pred<-as.data.frame(pred)
+summary(pred)
+
+sum(diag(table(pred[,1],test[,1])))
+nrow(test)
+8750/10000
+#accuracy: 87.5%
+
+
+
+#modify the model to get higher accuracy:
+model<-h2o.deeplearning(x=2:785,y=1,train_h2o,activation="RectifierWithDropout",hidden=c(200,200,200),input_dropout_ratio=0.2,l1=1e-5,nfolds=10,epochs=10)
+
+pred<-h2o.predict(model,newdata = as.h2o(test))
+pred.df<-as.data.frame(pred)
+
+sum<-sum(diag(table(test[,1],pred.df[,1])))
+
+
+sum/nrow(test) 
+#accuracy: 91.85%
+
+
+
+###Keras
+
+install.packages("keras")
+library(keras)
+install_keras()
+
+train<-read.csv("/Users/fanliu/Desktop/AI\ Project/data/mnist_train.csv",header=F) 
+test<-read.csv("/Users/fanliu/Desktop/AI\ Project/data/mnist_test.csv",header = F)
+
+train[,-1]<-train[,-1]/255
+test[,-1]<-test[,-1]/255
+
+ytrain<-to_categorical(train[,1],10)
+ytest<-to_categorical(test[,1],10)
+
+class(ytrain)
+train<-as.matrix(train)
+test<-as.matrix(test)
+
+model<-keras_model_sequential()
+model %>%
+  layer_dense(units=256, activation='relu',input_shape=c(784)) %>%
+  layer_dropout(rate=0.4) %>%
+  layer_dense(units=128,activation='relu') %>%
+  layer_dropout(rate=0.3) %>%
+  layer_dense(units=10, activation='softmax')
+
+summary(model)
+
+
+model %>% compile(
+  loss='categorical_crossentropy',
+  optimizer=optimizer_rmsprop(),
+  metrics=c('accuracy')
+)
+
+history<-model%>% fit(
+  train[,-1], ytrain,
+  epochs=30, batch_size=128,
+  validation_split=0.2
+)
+
+
+plot(history)
+
+#evaluate model's performance on the test data
+model %>% evaluate(test[,-1],ytest)
+#accuracy:98.04%
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
